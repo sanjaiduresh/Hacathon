@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Mapbox Directions API with Instructions</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://api.tiles.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
+    <link href="https://api.tiles.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 50%;
+            width: 100%;
+            height: 50%;
+        }
+
+        #instructions {
+            position: absolute;
+            top: 50%;
+            bottom: 0;
+            left: 10px;
+            width: 50%;
+            background: white;
+            padding: 10px;
+            z-index: 1;
+            overflow-y: auto;
+        }
+
+        #total-distance {
+            position: absolute;
+            top: 50%;
+            bottom: 0;
+            right: 10px;
+            width: 50%;
+            background: white;
+            padding: 10px;
+            z-index: 1;
+        }
+
+    </style>
+</head>
+
+<body>
+
+    <div id="map"></div>
+    <div id="instructions"></div>
+    <div id="total-distance"></div>
+    <div id="back-btn">
+        <a href="index.html">
+            <span>Go back</span>
+        </a>
+    </div>
+
+
+
+
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1Ijoic2F5dG9oaWRleW91IiwiYSI6ImNsbGQxYWwzZDA1Y3kzZnFtZW92bjVwbjIifQ.ArnQO4SvLPYahEk3YOUx4A';
+
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: [78.658410, 17.162096],
+            zoom: 15
+        });
+        const points = [
+            {
+                coordinates: [78.658410, 17.162096],
+                isSafe: true,
+                isStarting: true,
+            },
+            { coordinates: [78.650898, 17.172552], isSafe: false },
+            { coordinates: [78.655098, 17.183043], isSafe: false },
+            { coordinates: [78.652227, 17.184859], isSafe: true },
+            { coordinates: [78.653714, 17.186347], isSafe: true },
+            { coordinates: [78.650976, 17.187035], isSafe: false },
+            { coordinates: [78.652554, 17.187886], isSafe: true },
+            { coordinates: [78.654253, 17.188919], isSafe: true },
+            { coordinates: [78.654253, 17.188919], isSafe: true },
+
+        ];
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * (Math.PI / 180);
+            const dLon = (lon2 - lon1) * (Math.PI / 180);
+            const a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            const distance = R * c;
+            return distance;
+        }
+
+        let totalDistance = 0;
+
+        async function getRoute(start, end) {
+            const response = await fetch(`https://api.mapbox.com/directions/v5/mapbox/cycling/${start[0]},${start[1]};${end[0]},${end[1]}?steps=true&geometries=geojson&access_token=${mapboxgl.accessToken}`);
+            const data = await response.json();
+            const route = data.routes[0].geometry.coordinates;
+            const distance = calculateDistance(start[1], start[0], end[1], end[0]);
+
+            map.addLayer({
+                id: 'route-' + start.join('-'),
+                type: 'line',
+                source: {
+                    type: 'geojson',
+                    data: {
+                        type: 'Feature',
+                        properties: {
+                            distance: distance.toFixed(2) + ' km'
+                        },
+                        geometry: {
+                            type: 'LineString',
+                            coordinates: route
+                        }
+                    }
+                },
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: {
+                    'line-color': '#' + (Math.random().toString(16) + '000000').substring(2, 8),
+                    'line-width': 5,
+                    'line-opacity': 0.75
+                }
+            });
+
+            totalDistance += distance;
+
+            const instructions = document.getElementById('instructions');
+            instructions.innerHTML += `Distance from point ${start.join(', ')} to point ${end.join(', ')}: ${distance.toFixed(2)} km<br>`;
+
+            const totalDistanceDiv = document.getElementById('total-distance');
+            totalDistanceDiv.innerHTML = `Total Distance: ${totalDistance.toFixed(2)} km`;
+        }
+
+        map.on('load', () => {
+            points.forEach((point, index) => {
+                const coord = point.coordinates;
+                const isSafe = point.isSafe;
+                const isStarting = point.isStarting;
+
+                map.loadImage(
+                    isSafe ? "https://img.icons8.com/color/40/marker--v1.png" : "https://img.icons8.com/color/40/marker--v1.png",
+                    function (error, image) {
+                        if (error) throw error;
+                        map.addImage('custom-marker-' + index, image);
+
+                        map.addLayer({
+                            id: 'point-' + index,
+                            type: 'symbol',
+                            source: {
+                                type: 'geojson',
+                                data: {
+                                    type: 'FeatureCollection',
+                                    features: [
+                                        {
+                                            type: 'Feature',
+                                            properties: {},
+                                            geometry: {
+                                                type: 'Point',
+                                                coordinates: coord
+                                            }
+                                        }
+                                    ]
+                                }
+                            },
+                            layout: {
+                                'icon-image': isStarting ? "https://img.icons8.com/color/48/000000/marker--v1.png" : 'custom-marker-' + index,
+                                'icon-size': 0.5,
+                                'icon-allow-overlap': true,
+                                'icon-ignore-placement': true,
+                                'icon-anchor': 'bottom'
+                            }
+                        });
+
+                        if (index > 0) {
+                            getRoute(points[index - 1].coordinates, coord);
+                        }
+                    }
+                );
+            });
+        });
+    </script>
+</body>
+
+</html>

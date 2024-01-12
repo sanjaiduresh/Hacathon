@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+  <meta charset='utf-8' />
+  <title>Getting started with the Mapbox Directions API</title>
+  <meta name='viewport' content='width=device-width, initial-scale=1' />
+  <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js'></script>
+  <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css' rel='stylesheet' />
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+    #map {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="instructions"></div>
+  <div id='map'></div>
+  <script>
+    mapboxgl.accessToken = 'pk.eyJ1Ijoic2F5dG9oaWRleW91IiwiYSI6ImNsbGQxYWwzZDA1Y3kzZnFtZW92bjVwbjIifQ.ArnQO4SvLPYahEk3YOUx4A';
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: [78.65841,17.162096],
+      zoom: 12
+    });
+
+    const start = [78.65841,17.162096];
+    const coordinates = [
+      [78.650898, 17.172552],
+      [78.652227, 17.184859],
+      [78.653833, 17.186728],
+      [78.650976, 17.187035],
+      [78.652554, 17.187886],
+      [78.654253, 17.188919]
+    ];
+
+    async function getRoute(start, end, color) {
+      const query = await fetch(`https://api.mapbox.com/directions/v5/mapbox/driving/${start[0]},${start[1]};${end[0]},${end[1]}?alternatives=true&geometries=geojson&language=en&overview=full&steps=true&access_token=${mapboxgl.accessToken}`, { method: 'GET' });
+      const json = await query.json();
+      const data = json.routes[0];
+      const route = data.geometry.coordinates;
+      const geojson = {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: route
+        }
+      };
+      map.addLayer({
+        id: `route-${end[0]}-${end[1]}`,
+        type: 'line',
+        source: {
+          type: 'geojson',
+          data: geojson
+        },
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': color,
+          'line-width': 5,
+          'line-opacity': 0.75
+        }
+      });
+    }
+
+    map.on('load', () => {
+      coordinates.forEach((coord, index) => {
+        const color = `#${((1 << 24) * Math.random() | 0).toString(16)}`;
+        getRoute(start, coord, color);
+
+        // Add circle markers for each coordinate
+        map.addLayer({
+          id: `point-${coord[0]}-${coord[1]}`,
+          type: 'circle',
+          source: {
+            type: 'geojson',
+            data: {
+              type: 'Feature',
+              properties: {},
+              geometry: {
+                type: 'Point',
+                coordinates: coord
+              }
+            }
+          },
+          paint: {
+            'circle-radius': 8,
+            'circle-color': color
+          }
+        });
+      });
+
+      // Add the start marker
+      map.addLayer({
+        id: 'start',
+        type: 'circle',
+        source: {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: [
+              {
+                type: 'Feature',
+                properties: {},
+                geometry: {
+                  type: 'Point',
+                  coordinates: start
+                }
+              }
+            ]
+          }
+        },
+        paint: {
+          'circle-radius': 10,
+          'circle-color': '#3887be'
+        }
+      });
+    });
+  </script>
+</body>
+</html>
